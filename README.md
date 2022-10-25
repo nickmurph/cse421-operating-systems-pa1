@@ -4,8 +4,8 @@ PintOS is a small operating system, written in C, first developed at Stanford fo
 </br>
 </br>
 Project 1 implements the following:</br>
-  -Alarm Clock (current timer uses busy-waiting and simply sleeps, not multi-threaded)</br>
-  -Priority Scheduling (maintain ready and waiting theads lists, use semaphores and locks, select next thread based on priority among the ready list)</br>
-  -Priority Donation (prevent priority inversion by implementing donation of priority between threads waiting on the same lock)</br>
-  -Multivel Feedback Queue Scheduler (4.4BSD Scheduler, activated with the "-mltq" kernel option)</br>
+*Alarm Clock (current timer uses busy-waiting and simply sleeps, not multi-threaded)</br>
+*Priority Scheduling (maintain ready and waiting theads lists, use semaphores and locks, select next thread based on priority among the ready list)</br>
+*Priority Donation (prevent priority inversion by implementing donation of priority between threads waiting on the same lock)</br>
+*Multivel Feedback Queue Scheduler (4.4BSD Scheduler, activated with the "-mltq" kernel option)</br>
 
