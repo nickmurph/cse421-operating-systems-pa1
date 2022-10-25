@@ -1,0 +1,232 @@
+			+--------------------+
+			|        CS 140      |
+			| PROJECT 1: THREADS |
+			|   DESIGN DOCUMENT  |
+			+--------------------+
+				   
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Michael Cleversley mbclever@buffalo.edu
+Nicholas Murphy nfmurphy@buffalo.edu
+
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+-I had a long chunk of code for donation, but it caused me to fail 17/27 tests as opposed to failing 14/27 when the 
+code wasn't there. I'll submit both onto Autolab to see which gets more points, but I will write the doc as though the 
+donation code was written in (as that was the purpose of the assignment).
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			     ALARM CLOCK
+			     ===========
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+-static struct list sleepingList: list of all threads that are sleeping and will be later woken up by timer_interrupt based on wake time
+-Added to struct thread:
+--thread->wake: time that will pass before thread should be awoken
+--thread->timer_sema: semaphore used to signal when thread should be blocked and unblocked
+--thread->timer_elem: element in sleepingList
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe what happens in a call to timer_sleep(),
+>> including the effects of the timer interrupt handler.
+
+-Disable interrupts to ensure atomic-ness, then make sure the ticks are nonnegative, then schedule the wakeup time using t->wait + 
+timer_ticks(), then insert to list based on wake time using list_insert_ordered, then call sema_down (block the thread), then
+re-enable interrupts
+
+>> A3: What steps are taken to minimize the amount of time spent in
+>> the timer interrupt handler?
+
+-Made sure while loop was as efficient as possible, making sure I could pop off the front of the list is a lot 
+more efficient than a typical remove operation, which is generally O(n) instead of O(1) 
+
+---- SYNCHRONIZATION ----
+
+>> A4: How are race conditions avoided when multiple threads call
+>> timer_sleep() simultaneously?
+
+-Semaphore is implemented as timer_sema
+
+>> A5: How are race conditions avoided when a timer interrupt occurs
+>> during a call to timer_sleep()?
+
+-Interrupts are disabled
+
+---- RATIONALE ----
+
+>> A6: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+
+-I tried several variations of the while loop in timer_interrupt, but I liked the one I settled with because removing from the front 
+of the list seemed elegant and efficient. Additionally, I worked with and without the semaphore, and settled with the semaphore for two 
+reasons: 1. It was recommended in the recitation slides and 2. It seemed more robust than simply blocking the thread
+
+			 PRIORITY SCHEDULING
+			 ===================
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+-bool compare_priority (const struct list_elem *, const struct list_elem *, void *): Compares the priority of two threads in order 
+to maintain an ordered list
+
+>> B2: Explain the data structure used to track priority donation.
+>> Use ASCII art to diagram a nested donation.  (Alternately, submit a
+>> .png file.)
+
+-Here's how I would picture it:
+
+_________a_________           ________b________             _______c_________
+|                 | ---\      |                | ---\       |      20        |
+|_________________| ---/      |________________| ---/       |________________|
+
+-a donated its priority to b, who donated its priority to c. c will eventually relinquish it back to b, who will 
+do the same to a. This could continue for 8 layers, but the ASCII art was tedious to draw.
+
+---- ALGORITHMS ----
+
+>> B3: How do you ensure that the highest priority thread waiting for
+>> a lock, semaphore, or condition variable wakes up first?
+
+-By keeping it at the head of the ready_list and waking up the head first, i.e. the highest priority
+
+>> B4: Describe the sequence of events when a call to lock_acquire()
+>> causes a priority donation.  How is nested donation handled?
+
+-I needed to implement a helper function for thread_set_priority such that it could accept an arbitrary thread to 
+compute with, as thread_set_priority by itself only computes the current_thread. So, we call the helper function with the lock_holder 
+instead of the current_thread. 
+-Nested donation is handled with a counter i that either increments up to 8, or breaks from the loop. Up until we
+reach that upper limit, we need to find the lock that is resonsible for locking the current holder.
+
+>> B5: Describe the sequence of events when lock_release() is called
+>> on a lock that a higher-priority thread is waiting for.
+
+-We need to first find out if the thread has only one lock, or if there are several donations. In a lock's waiting list, the threads 
+are sorted in decreasing order of priority. If there's threads on this list, donate the priority_lock to the 
+current thread. Lastly, assuming an empty waiting list, reset the process to its original priority.
+
+---- SYNCHRONIZATION ----
+
+>> B6: Describe a potential race in thread_set_priority() and explain
+>> how your implementation avoids it.  Can you use a lock to avoid
+>> this race?
+
+-A potential race is two threads inconsistently writing to the current processes' priority value. If I'm being honest, I chose to
+avoid this condition by merely disabling the interrupts because it was simpler, but I see now that there's no reason why a simple 
+lock wouldn't suffice. 
+
+---- RATIONALE ----
+
+>> B7: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+
+-I'm not sure that I picked a certain "design", it was merely trial and error that resulted in a lot of error. 
+
+			  ADVANCED SCHEDULER
+			  ==================
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> C2: Suppose threads A, B, and C have nice values 0, 1, and 2.  Each
+>> has a recent_cpu value of 0.  Fill in the table below showing the
+>> scheduling decision and the priority and recent_cpu values for each
+>> thread after each given number of timer ticks:
+
+timer  recent_cpu    priority   thread
+ticks   A   B   C   A   B   C   to run
+-----  --  --  --  --  --  --   ------
+ 0		0	0	0	63	61	59		A 			
+ 4		0	0	0	63	61	59		A 
+ 8		0	0	0	63	61	59		A 
+12		0	0	0	63	61	59		A 
+16		0	0	0	63	61	59		A 
+20		0	0	0	63	61	59		A 
+24		0	0	0	63	61	59		A 
+28		0	0	0	63	61	59		A 
+32		0	0	0	63	61	59		A 
+36		0	0	0	63	61	59		A 
+
+>> C3: Did any ambiguities in the scheduler specification make values
+>> in the table uncertain?  If so, what rule did you use to resolve
+>> them?  Does this match the behavior of your scheduler?
+
+-I'm almost certain Pintos considers higher numbers to mean higher priorities, but it is uncertain as different OSes
+can have different policies. Also, it seems a bit strange that all the columns are the same, but recent_cpu is only calculated
+every 100 ticks, and the table only reaches to 36.
+
+>> C4: How is the way you divided the cost of scheduling between code
+>> inside and outside interrupt context likely to affect performance?
+
+-Great question.
+
+---- RATIONALE ----
+
+>> C5: Briefly critique your design, pointing out advantages and
+>> disadvantages in your design choices.  If you were to have extra
+>> time to work on this part of the project, how might you choose to
+>> refine or improve your design?
+
+-Considering that I didn't finish, I would spend much more time exploring the priority donation, as my current 
+implementation does not seem to work at all. However, something I like about my design is the modular aspect to it:
+I break the code into smaller chunks like calculate_priority and even the helper function for thread_set_priority.
+
+>> C6: The assignment explains arithmetic for fixed-point math in
+>> detail, but it leaves it open to you to implement it.  Why did you
+>> decide to implement it the way you did?  If you created an
+>> abstraction layer for fixed-point math, that is, an abstract data
+>> type and/or a set of functions or macros to manipulate fixed-point
+>> numbers, why did you do so?  If not, why not?
+
+-This was a difficult part for me, as I was having trouble not only understanding the difference between a fixed_point_t
+and an int. Printing them out made them look exactly the same, and I was having trouble getting load_avg to be non-zero (I kept 
+rounding a small fractiom.). The solution for me was to make load_avg and recent_cpu of the type fixed_point_t, so I wouldn't 
+have to convert it to an int, as long as I stayed consistent in the fixedpoint.h methods I used.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+>> Any other comments?
